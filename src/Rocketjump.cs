@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
+using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.UserMessages;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -12,12 +13,13 @@ using System.Numerics;
 using Vector = CounterStrikeSharp.API.Modules.Utils.Vector;
 using QAngle = CounterStrikeSharp.API.Modules.Utils.QAngle;
 using Microsoft.Extensions.Logging;
+using System.Runtime.InteropServices;
 
 namespace Rocketjump;
 public class Rocketjump : BasePlugin, IPluginConfig<RocketjumpConfig>
 {
     public override string ModuleName => "Rocketjump";
-    public override string ModuleVersion => "0.0.1";
+    public override string ModuleVersion => "0.0.2";
     public override string ModuleAuthor => "svn (https://github.com/ipsvn)";
 
     public RocketjumpConfig Config { get; set; } = null!;
@@ -26,8 +28,10 @@ public class Rocketjump : BasePlugin, IPluginConfig<RocketjumpConfig>
 
     public FakeConVar<bool> EnableBeams = new("rj_enable_beams", "Enable beams", false);
 
-    public MemoryFunctionVoid<IntPtr, IntPtr> Touch
-        = new("55 48 89 E5 41 54 49 89 F4 53 48 8B 87");
+    private static VirtualFunctionVoid<nint, CsTeam> CDecoyProjectile_Touch = 
+        new("CDecoyProjectile", RuntimeInformation.IsOSPlatform(OSPlatform.Linux) 
+            ? 153 
+            : 154);
 
     private class DecoyShot
     {
@@ -42,12 +46,12 @@ public class Rocketjump : BasePlugin, IPluginConfig<RocketjumpConfig>
 
         RegisterListener<Listeners.CheckTransmit>(OnCheckTransmit);
 
-        Touch.Hook(CBaseEntity_Touch_Hook, HookMode.Pre);
+        CDecoyProjectile_Touch.Hook(CDecoyProjectile_Touch_Hook, HookMode.Pre);
     }
 
     public override void Unload(bool hotReload)
     {
-        Touch.Unhook(CBaseEntity_Touch_Hook, HookMode.Pre);
+        CDecoyProjectile_Touch.Unhook(CDecoyProjectile_Touch_Hook, HookMode.Pre);
     }
 
     public void OnConfigParsed(RocketjumpConfig config)
@@ -105,7 +109,7 @@ public class Rocketjump : BasePlugin, IPluginConfig<RocketjumpConfig>
         }
     }
 
-    public HookResult CBaseEntity_Touch_Hook(DynamicHook hook)
+    public HookResult CDecoyProjectile_Touch_Hook(DynamicHook hook)
     {
         var decoy = hook.GetParam<CDecoyProjectile>(0);
 
